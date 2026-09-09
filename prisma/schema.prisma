@@ -15,7 +15,7 @@ datasource db {
 model Organization {
   id String @id @default(cuid())
   name String
-  slug String
+  slug String @unique
   users User[]
   request Request[]
   createdAt DateTime @default(now())
