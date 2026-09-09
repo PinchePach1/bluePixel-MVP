@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id String @id @default(cuid())
+  name String
+  slug String
+  users User[]
+  request Request[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id String @id @default(cuid())
+  name String
+  email String @unique
+  password String // Hashed
+  role Role @default(MEMBER)
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  request Request[]
+  requestHistories RequestHistory[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, email]) // Usuario unico por organización
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+model Request {
+  id String @id @default(cuid())
+  title String
+  description String
+  status Status @default(DRAFT)
+  createdById String
+  createdBy User @relation(fields: [createdById], references: [id])
+  tenantId String
+  organization Organization @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  histories RequestHistory[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdById])
+}
+
+enum Status {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model RequestHistory {
+  id String @id @default(cuid())
+  requestId String
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  oldStatus Status?
+  newStatus Status
+  changeById String
+  changeBy User @relation(fields: [changeById], references: [id])
+  comment String?
+  createdAt DateTime @default(now())
+
+  @@index([requestId])
+  @@index([changeById])
+}
