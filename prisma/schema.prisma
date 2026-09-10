@@ -31,7 +31,7 @@ model User {
   organizationId String
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   request Request[]
-  requestHistories RequestHistory[]
+  requestHistories RequestHistory[] @relation("ChangedBy")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -69,16 +69,13 @@ enum Status {
 }
 
 model RequestHistory {
-  id String @id @default(cuid())
-  requestId String
-  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  oldStatus Status?
-  newStatus Status
-  changeById String
-  changeBy User @relation(fields: [changeById], references: [id])
-  comment String?
-  createdAt DateTime @default(now())
-
-  @@index([requestId])
-  @@index([changeById])
+  id          String   @id @default(cuid())
+  requestId   String
+  request     Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  oldStatus   Status?
+  newStatus   Status
+  changedById String
+  changedBy   User     @relation("ChangedBy", fields: [changedById], references: [id])
+  comment     String?
+  createdAt   DateTime @default(now())
 }

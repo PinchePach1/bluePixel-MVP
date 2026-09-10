@@ -6,9 +6,9 @@ export const RequestCreateSchema = z.object({
 });
 
 export const RequestUpdateSchema = z.object({
-    title: z.string().min(3).max(100).optional(),
-    description: z.string().min(5).max(500).optional(),
-    status: z.enum(["DRAFT", "PENDING", "APPROVED", "REJECTED"]).optional(),
+  title: z.string().min(3).max(100).optional(),
+  description: z.string().min(5).max(500).optional(),
+  status: z.enum(["DRAFT", "SUBMITTED", "APPROVED", "REJECTED"]).optional(),
 });
 
 export const LoginSchema = z.object({
