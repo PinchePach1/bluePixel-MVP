@@ -1,0 +1,359 @@
+openapi: 3.1.0
+info:
+  title: Blue Pixel Requests API
+  version: 0.4.0
+  description: |
+    Contrato HTTP para la gestión multi-tenant de solicitudes.
+    La API requiere una sesión autenticada de NextAuth.
+servers:
+  - url: http://localhost:3000
+    description: Desarrollo local
+
+tags:
+  - name: Requests
+    description: Solicitudes de la organización del usuario autenticado
+
+paths:
+  /api/requests:
+    get:
+      tags: [Requests]
+      summary: Listar solicitudes
+      description: Devuelve las solicitudes de la organización asociada a la sesión.
+      operationId: listRequests
+      security:
+        - nextAuthSession: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filtra por estado. Los valores desconocidos se ignoran.
+          schema:
+            $ref: "#/components/schemas/RequestStatus"
+      responses:
+        "200":
+          description: Lista de solicitudes ordenada de más reciente a más antigua.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RequestSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [Requests]
+      summary: Crear una solicitud
+      operationId: createRequest
+      security:
+        - nextAuthSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestCreate"
+            example:
+              title: Acceso a entorno de pruebas
+              description: Necesito acceso temporal para validar la integración.
+      responses:
+        "201":
+          description: Solicitud creada en estado DRAFT.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestSummary"
+        "400":
+          $ref: "#/components/responses/InvalidData"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/requests/{id}:
+    parameters:
+      - $ref: "#/components/parameters/RequestId"
+    get:
+      tags: [Requests]
+      summary: Obtener una solicitud
+      operationId: getRequest
+      security:
+        - nextAuthSession: []
+      responses:
+        "200":
+          description: Solicitud con su historial completo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/RequestNotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      tags: [Requests]
+      summary: Actualizar una solicitud
+      description: |
+        Permite editar título y descripción mientras la solicitud está en DRAFT.
+        Las transiciones de estado válidas son DRAFT a SUBMITTED y SUBMITTED a
+        APPROVED o REJECTED. Solo el creador puede enviar una solicitud y solo
+        un administrador puede aprobarla o rechazarla.
+      operationId: updateRequest
+      security:
+        - nextAuthSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUpdate"
+            examples:
+              editDraft:
+                summary: Editar borrador
+                value:
+                  title: Acceso a entorno de producción
+                  description: Solicito acceso para desplegar la versión aprobada.
+              submit:
+                summary: Enviar a revisión
+                value:
+                  status: SUBMITTED
+                  comment: Listo para revisión.
+      responses:
+        "200":
+          description: Solicitud actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestDetail"
+        "400":
+          description: Datos inválidos o transición/edición no permitida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: El rol o el usuario no puede realizar la operación.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/RequestNotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Requests]
+      summary: Eliminar una solicitud
+      description: Solo disponible para usuarios con rol ADMIN.
+      operationId: deleteRequest
+      security:
+        - nextAuthSession: []
+      responses:
+        "200":
+          description: Solicitud eliminada.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+                    const: Eliminada
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: El usuario no es administrador.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/RequestNotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  securitySchemes:
+    nextAuthSession:
+      type: apiKey
+      in: cookie
+      name: next-auth.session-token
+      description: Cookie de sesión JWT emitida por NextAuth. En HTTPS puede usar __Secure-next-auth.session-token.
+  parameters:
+    RequestId:
+      name: id
+      in: path
+      required: true
+      description: Identificador CUID de la solicitud.
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    Unauthorized:
+      description: Sesión ausente o inválida.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InvalidData:
+      description: El cuerpo no cumple las reglas de validación.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+    RequestNotFound:
+      description: Solicitud inexistente o perteneciente a otra organización.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalServerError:
+      description: Error interno del servidor.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    RequestStatus:
+      type: string
+      enum: [DRAFT, SUBMITTED, APPROVED, REJECTED]
+    UserSummary:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    RequestCreate:
+      type: object
+      additionalProperties: false
+      required: [title, description]
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 100
+        description:
+          type: string
+          minLength: 5
+          maxLength: 500
+    RequestUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 100
+        description:
+          type: string
+          minLength: 5
+          maxLength: 500
+        status:
+          $ref: "#/components/schemas/RequestStatus"
+        comment:
+          type: [string, "null"]
+          description: Comentario guardado al crear un registro de historial.
+    RequestHistory:
+      type: object
+      required: [id, requestId, newStatus, changedById, createdAt]
+      properties:
+        id:
+          type: string
+        requestId:
+          type: string
+        oldStatus:
+          oneOf:
+            - $ref: "#/components/schemas/RequestStatus"
+            - type: "null"
+        newStatus:
+          $ref: "#/components/schemas/RequestStatus"
+        changedById:
+          type: string
+        changedBy:
+          $ref: "#/components/schemas/UserSummary"
+        comment:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+    RequestSummary:
+      type: object
+      required:
+        [
+          id,
+          title,
+          description,
+          status,
+          createdById,
+          tenantId,
+          createdAt,
+          updatedAt,
+          createdBy,
+          histories,
+        ]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/RequestStatus"
+        createdById:
+          type: string
+        tenantId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        createdBy:
+          $ref: "#/components/schemas/UserSummary"
+        histories:
+          type: array
+          description: En listados contiene como máximo el historial más reciente.
+          items:
+            $ref: "#/components/schemas/RequestHistory"
+    RequestDetail:
+      allOf:
+        - $ref: "#/components/schemas/RequestSummary"
+        - type: object
+          properties:
+            histories:
+              type: array
+              description: Historial completo ordenado del más antiguo al más reciente.
+              items:
+                $ref: "#/components/schemas/RequestHistory"
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    ValidationError:
+      type: object
+      required: [error, details]
+      properties:
+        error:
+          type: string
+          const: Datos inválidos
+        details:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
