@@ -92,14 +92,6 @@ export default function RequestDetail({ id }: { id: string }) {
       }
       const updated = await res.json();
       setRequest(updated);
-      setSuccessMessage("Solicitud actualizada correctamente");
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Error al cambiar estado");
-    }
-  };
-
-  if (isLoading) return <div>Cargando...</div>;
       const message =
         status === "APPROVED"
           ? "Solicitud aprobada correctamente"
@@ -108,6 +100,12 @@ export default function RequestDetail({ id }: { id: string }) {
             : "Solicitud actualizada correctamente";
       setSuccessMessage(message);
       setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Error al cambiar estado");
+    }
+  };
+
+  if (isLoading) return <div>Cargando...</div>;
   if (error) return <div className="text-red-500">{error}</div>;
   if (!request) return <div>No encontrada</div>;
 
